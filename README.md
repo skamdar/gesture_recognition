@@ -1,4 +1,6 @@
-# 3D ResNets for Action Recognition
+# 3D ResNets for Gesture Recogntion
+The reference codebase is taken from https://github.com/kenshohara/video-classification-3d-cnn-pytorch. As described below.
+We used GRIT database in our case.
 
 ## Update (2018/2/21)
 
