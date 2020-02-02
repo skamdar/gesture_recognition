@@ -1,21 +1,43 @@
 import json
-
+#import urllib2
+import urllib.request as urllib2
 import numpy as np
 import pandas as pd
 
-class GRITclassification(object):
+API = 'http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/challenge17/api.py'
+
+def get_blocked_videos(api=API):
+    api_url = '{}?action=get_blocked'.format(api)
+    req = urllib2.Request(api_url)
+    response = urllib2.urlopen(req)
+    return json.loads(response.read())
+
+class KINETICSclassification(object):
+    GROUND_TRUTH_FIELDS = ['database', 'labels']
+    PREDICTION_FIELDS = ['results', 'version', 'external_data']
 
     def __init__(self, ground_truth_filename=None, prediction_filename=None,
-                 subset='validation', verbose=False, top_k=1):
+                 ground_truth_fields=GROUND_TRUTH_FIELDS,
+                 prediction_fields=PREDICTION_FIELDS,
+                 subset='validation', verbose=False, top_k=1,
+                 check_status=True):
         if not ground_truth_filename:
             raise IOError('Please input a valid ground truth file.')
         if not prediction_filename:
             raise IOError('Please input a valid prediction file.')
         self.subset = subset
         self.verbose = verbose
+        self.gt_fields = ground_truth_fields
+        self.pred_fields = prediction_fields
         self.top_k = top_k
         self.ap = None
         self.hit_at_k = None
+        self.check_status = check_status
+        # Retrieve blocked videos from server.
+        if self.check_status:
+            self.blocked_videos = get_blocked_videos()
+        else:
+            self.blocked_videos = list()
         # Import ground truth and predictions.
         self.ground_truth, self.activity_index = self._import_ground_truth(
             ground_truth_filename)
@@ -56,11 +78,13 @@ class GRITclassification(object):
         for videoid, v in data['database'].iteritems():
             if self.subset != v['subset']:
                 continue
+            if videoid in self.blocked_videos:
+                continue
             this_label = v['annotations']['label']
             if this_label not in activity_index:
                 activity_index[this_label] = cidx
                 cidx += 1
-            video_lst.append(videoid)
+            video_lst.append(videoid[:-14])
             label_lst.append(activity_index[this_label])
         ground_truth = pd.DataFrame({'video-id': video_lst,
                                      'label': label_lst})
@@ -90,6 +114,8 @@ class GRITclassification(object):
         # Initialize data frame
         video_lst, label_lst, score_lst = [], [], []
         for videoid, v in data['results'].iteritems():
+            if videoid in self.blocked_videos:
+                continue
             for result in v:
                 label = self.activity_index[result['label']]
                 video_lst.append(videoid)
@@ -107,17 +133,23 @@ class GRITclassification(object):
         """
         hit_at_k = compute_video_hit_at_k(self.ground_truth,
                                           self.prediction, top_k=self.top_k)
+        # avg_hit_at_k = compute_video_hit_at_k(
+            # self.ground_truth, self.prediction, top_k=self.top_k, avg=True)
         if self.verbose:
             print ('[RESULTS] Performance on ActivityNet untrimmed video '
                    'classification task.')
+            # print '\tMean Average Precision: {}'.format(ap.mean())
             print('\tError@{}: {}'.format(self.top_k, 1.0 - hit_at_k))
             #print '\tAvg Hit@{}: {}'.format(self.top_k, avg_hit_at_k)
+        # self.ap = ap
         self.hit_at_k = hit_at_k
+        # self.avg_hit_at_k = avg_hit_at_k
 
 ################################################################################
 # Metrics
 ################################################################################
-def compute_video_hit_at_k(ground_truth, prediction, top_k=3):
+
+def compute_video_hit_at_k(ground_truth, prediction, top_k=3, avg=False):
     """Compute accuracy at k prediction between ground truth and
     predictions data frames. This code is greatly inspired by evaluation
     performed in Karpathy et al. CVPR14.
@@ -152,4 +184,6 @@ def compute_video_hit_at_k(ground_truth, prediction, top_k=3):
         gt_label = ground_truth.loc[gt_idx]['label'].tolist()
         avg_hits_per_vid[i] = np.mean([1 if this_label in pred_label else 0
                                        for this_label in gt_label])
+        if not avg:
+            avg_hits_per_vid[i] = np.ceil(avg_hits_per_vid[i])
     return float(avg_hits_per_vid.mean())

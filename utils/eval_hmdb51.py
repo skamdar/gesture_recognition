@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 
-class GRITclassification(object):
+class HMDBclassification(object):
 
     def __init__(self, ground_truth_filename=None, prediction_filename=None,
                  subset='validation', verbose=False, top_k=1):
