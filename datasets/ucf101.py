@@ -6,65 +6,18 @@ import math
 import functools
 import json
 import copy
-from scipy.ndimage import filters
-import numpy as np
 
 from utils import load_value_file
 
-def cnnlstm(clip, sample_duration):
-
-    h,w = np.array(clip[0]).shape
-    #print("fsdf".format(img.size()))
-
-    ret_img = np.zeros((1, h, w))
-    ret_clip = []
-    #clip = [img.convert('LA') for img in clip]
-    #print(sample_duration)
-    for i in range(1, sample_duration - 1):
-        #print(np.array(clip[i]).shape)
-        ret_clip.append(Image.fromarray(np.bitwise_and(np.array(clip[i]) - np.array(clip[i - 1])),
-                        (np.array(clip[i + 1]) - np.array(clip[i]))))
-
-
-    return torch.from_numpy(ret_img).float()
-
-
-
-def cal_gradient(clip, sample_duration):
-
-    h,w = np.array(clip[0]).shape
-    #print("fsdf".format(img.size()))
-
-    ret_img = np.zeros((3, h, w))
-
-    #clip = [img.convert('LA') for img in clip]
-    #print(sample_duration)
-    for i in range(1, sample_duration):
-        #print(np.array(clip[i]).shape)
-        ret_img[0,:,:] = ret_img[0,:,:] + (np.array(clip[i]) - np.array(clip[i - 1]))
-
-    img = Image.fromarray(ret_img[:,:,0])
-    filters.sobel(img, 1, ret_img[:, :, 1])
-    filters.sobel(img, 0, ret_img[:, :, 2])
-
-    #print(type(ret_img))
-    #img = Image.fromarray(ret_img)
-
-    return torch.from_numpy(ret_img).float()
-
 
 def pil_loader(path):
-    #print("pil_loader called")
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
         with Image.open(f) as img:
-            #return img.convert('RGB')
-            ## MCCNN
-            return img.convert('L')
+            return img.convert('RGB')
 
 
 def accimage_loader(path):
-    #print("accimage loader called")
     try:
         import accimage
         return accimage.Image(path)
@@ -83,12 +36,8 @@ def get_default_image_loader():
 
 def video_loader(video_dir_path, frame_indices, image_loader):
     video = []
-    pth = video_dir_path.split('/')
-    pth = pth[-1].split('_')
-    #print(video_dir_path)
     for i in frame_indices:
-        image_path = os.path.join(video_dir_path, 'image_{:2d}.jpg'.format(i - 1))
-        #print(image_path)
+        image_path = os.path.join(video_dir_path, 'image_{:05d}.jpg'.format(i))
         if os.path.exists(image_path):
             video.append(image_loader(image_path))
         else:
@@ -98,7 +47,6 @@ def video_loader(video_dir_path, frame_indices, image_loader):
 
 
 def get_default_video_loader():
-    #print("get default video loader called")
     image_loader = get_default_image_loader()
     return functools.partial(video_loader, image_loader=image_loader)
 
@@ -195,17 +143,32 @@ def make_dataset(root_path, annotation_path, subset, n_samples_for_each_video,
     return dataset, idx_to_class
 
 
-class GRIT(data.Dataset):
+class UCF101(data.Dataset):
+    """
+    Args:
+        root (string): Root directory path.
+        spatial_transform (callable, optional): A function/transform that  takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.RandomCrop``
+        temporal_transform (callable, optional): A function/transform that  takes in a list of frame indices
+            and returns a transformed version
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        loader (callable, optional): A function to load an video given its path and frame indices.
+     Attributes:
+        classes (list): List of the class names.
+        class_to_idx (dict): Dict with items (class_name, class_index).
+        imgs (list): List of (image path, class_index) tuples
+    """
 
     def __init__(self,
                  root_path,
                  annotation_path,
                  subset,
-                 sample_duration,
                  n_samples_for_each_video=1,
                  spatial_transform=None,
                  temporal_transform=None,
                  target_transform=None,
+                 sample_duration=16,
                  get_loader=get_default_video_loader):
         self.data, self.class_names = make_dataset(
             root_path, annotation_path, subset, n_samples_for_each_video,
@@ -215,7 +178,6 @@ class GRIT(data.Dataset):
         self.temporal_transform = temporal_transform
         self.target_transform = target_transform
         self.loader = get_loader()
-        self.sample_duration = sample_duration
 
     def __getitem__(self, index):
         """
@@ -227,29 +189,14 @@ class GRIT(data.Dataset):
         path = self.data[index]['video']
 
         frame_indices = self.data[index]['frame_indices']
-        #print(path)
-        #print(frame_indices)
         if self.temporal_transform is not None:
             frame_indices = self.temporal_transform(frame_indices)
         clip = self.loader(path, frame_indices)
-
         if self.spatial_transform is not None:
-            #print(self.spatial_transform)
             self.spatial_transform.randomize_parameters()
             clip = [self.spatial_transform(img) for img in clip]
 
-        ######### important
-        ######### inject gradient info in channels
-        #clip = cal_gradient(clip, self.sample_duration)
-        ###MCCNN
-        # clip = torch.unsqueeze(clip, 0).permute(1, 0, 2, 3)
-        #########
         # torch.stack concatenate vector entries in a new tensor along new(0) dimension
-        #print(clip.size)
-
-        ### CNNLSTM
-        clip = cnnlstm(clip, self.sample_duration)
-
         clip = torch.stack(clip, 0).permute(1, 0, 2, 3)
 
         target = self.data[index]
