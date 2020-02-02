@@ -1,12 +1,13 @@
 # 3D ResNets for Gesture Recogntion
-The reference codebase is taken from https://github.com/kenshohara/video-classification-3d-cnn-pytorch. As described below.
+The reference codebase is taken from https://github.com/kenshohara/video-classification-3d-cnn-pytorch. Use cases are as described below by original authers.
 We used GRIT database: 
 
 [
  Tsironi, Eleni and Barros, Pablo and Weber, Cornelius and Wermter, Stefan,
  "An Analysis of Convolutional Long Short-Term Memory Recurrent Neural Networks for Gesture Recognition",
  Neurocomput., https://doi.org/10.1016/j.neucom.2016.12.088, Elsevier Science Publishers B. V.
- ]
+ ](https://doi.org/10.1016/j.neucom.2016.12.088)
+
 
 ## Update (2018/2/21)
 
