@@ -18,7 +18,10 @@ We used GRIT database:
 |ResNet18 | Fine-tuned(last 2 layers) | 98 | 77 |
 |5 Layer 3D CNN | Full Training | 99 | 70 |
 
+5 layer 3D CNN in above table is the architecture proposed in the following article:
 
+[
+Barros, Pablo & Parisi, German & Jirak, Doreen & Wermter, Stefan. (2015). Real-time gesture recognition using a humanoid robot with a deep neural architecture. 2015. 646-651. 10.1109/HUMANOIDS.2014.7041431] 
 
 ## Summary
 
